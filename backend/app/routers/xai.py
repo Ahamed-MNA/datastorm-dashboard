@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/xai", tags=["xai"])
 @router.get("/{outlet_id}/explanation", response_model=OutletXAIResponseSchema)
 def get_outlet_explanation_text(outlet_id: str):
     """
-    Get the 3-paragraph business explanation narrative along with metadata for an outlet.
+    Get the 3-sentence business explanation narrative along with metadata for an outlet.
     """
     try:
         explanation = XaiService.get_outlet_explanation(outlet_id)

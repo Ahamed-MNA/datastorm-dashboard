@@ -76,24 +76,36 @@ uv run python test_backend.py
 
 ---
 
-## 📖 API Documentation Summary
+## 📖 API Documentation Reference
 
-### 📊 Dashboard endpoints
-- `GET /api/dashboard/stats`: Returns high-level KPIs (total outlets, budget allocations, lift, efficiency).
-- `GET /api/dashboard/charts`: Returns distributor, province, size, and type counts for frontend charts.
+For the complete API schemas, JSON examples, request bodies, and database field mappings, please refer to [API_DOCUMENTATION.md](file:///c:/data-storm/datastorm-dashboard/backend/API_DOCUMENTATION.md).
 
-### 🏪 Outlets endpoints
-- `GET /api/outlets/`: Lists outlets with query param filtering (`province`, `distributor`, `search`), sorting, and pagination.
-- `GET /api/outlets/{outlet_id}`: Retrieves profile details, predictions, spatial features, and budget spend for a single outlet.
+Here is the quick-reference checklist of all 17 active endpoints:
 
-### 🗺️ Spatial endpoints
-- `GET /api/spatial/{outlet_id}`: Retrieves competitor count, POI distances, and category impact scores.
-- `GET /api/spatial/summary`: Returns spatial averages across all outlets.
+### 📊 Dashboard
+- `GET /api/dashboard/summary`: Summary of total outlets, budget allocation, lift, and average efficiency.
+- `GET /api/dashboard/distributors`: Detail aggregates grouped by distributor ID.
+- `GET /api/dashboard/provinces`: Detail aggregates grouped by province.
 
-### 💰 Budget & Optimizer endpoints
-- `GET /api/budget/`: List allocations.
-- `GET /api/budget/summary`: Budget breakdown tables grouped by distributor, size, and type.
-- `POST /api/budget/optimize`: Re-runs the dual-bisection solver with a custom promotional budget to return new spend allocations.
+### 💰 Budget & Simulation
+- `POST /api/budget/simulate`: Re-run KKT optimization dynamically with custom budget limits.
+- `GET /api/budget/outlets`: Detailed spend allocations per outlet.
+- `GET /api/budget/distributors`: Distributor-wise spend aggregates, active counts, and average ROI.
+- `GET /api/budget/summary`: Overall promotional spend allocation summary.
 
-### 🧠 Explainable AI endpoints
-- `GET /api/xai/{outlet_id}`: Fetches or generates a 3-paragraph business narrative explaining the SFA potential score.
+### 🗺️ Map Layers
+- `GET /api/map/heatmap`: Coordinates and weight indices for drawing heatmaps.
+- `GET /api/map/competitors`: Competitor connections with coordinates for draw lines.
+- `GET /api/map/pois`: Coordinates and POI gravity index scores.
+- `GET /api/map/outlets`: Coordinate points and metadata markers for rendering outlet markers.
+
+### 🏪 Outlets
+- `GET /api/outlets/{id}/spatial`: Proximity and gravity metrics for a single outlet.
+- `GET /api/outlets/{id}/history`: 3-year historical monthly transaction logs.
+- `GET /api/outlets/{id}`: Detailed prediction profile for a single outlet.
+- `GET /api/outlets/export`: Downloads a generated CSV containing the entire prediction dataset.
+- `GET /api/outlets`: Paginated, searchable, and sortable outlet listings.
+
+### 🧠 Explainable AI
+- `GET /api/xai/{outlet_id}/explanation`: SFA local driver attributions and 3-paragraph executive narrative.
+
