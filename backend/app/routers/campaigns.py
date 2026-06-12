@@ -8,7 +8,8 @@ from app.models.schemas import (
     CampaignOutletSchema,
     MonitoringSnapshotSchema,
     ImpactAnalysisSchema,
-    ReallocationRecommendationSchema
+    ReallocationRecommendationSchema,
+    CampaignSimulationCreateSchema
 )
 from app.services.campaign_service import CampaignService
 from app.services.monitoring_service import MonitoringService
@@ -24,6 +25,13 @@ def create_campaign(campaign_in: CampaignCreateSchema, db: Session = Depends(get
     Create a new marketing campaign in Draft status.
     """
     return CampaignService.create_campaign(db, campaign_in)
+
+@router.post("/create-from-simulation", response_model=CampaignSchema)
+def create_campaign_from_simulation(campaign_in: CampaignSimulationCreateSchema, db: Session = Depends(get_db)):
+    """
+    Create an active campaign directly from a simulated budget optimization.
+    """
+    return CampaignService.create_campaign_from_simulation(db, campaign_in)
 
 @router.get("", response_model=List[CampaignSchema])
 def list_campaigns(db: Session = Depends(get_db)):
@@ -197,3 +205,13 @@ def apply_reallocations(campaign_id: int, db: Session = Depends(get_db)):
     """
     ReallocationService.apply_recommendations(db, campaign_id)
     return {"status": "applied", "message": "Recommendations applied successfully, budget shifted, and monitoring refreshed."}
+
+@router.post("/{campaign_id}/end", response_model=CampaignSchema)
+def end_campaign(campaign_id: int, db: Session = Depends(get_db)):
+    """
+    Transition campaign status from Active to Completed.
+    """
+    campaign = CampaignService.end_campaign(db, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return campaign

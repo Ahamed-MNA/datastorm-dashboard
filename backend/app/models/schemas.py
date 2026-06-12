@@ -115,6 +115,9 @@ class DashboardGroupStats(BaseModel):
 class OptimizeRequest(BaseModel):
     budget: float
     b_param: float = 0.0005
+    province: Optional[str] = None
+    outlet_type: Optional[str] = None
+    outlet_size: Optional[str] = None
 
 
 class OptimizeResponse(BaseModel):
@@ -211,6 +214,9 @@ class CampaignCreateSchema(BaseModel):
     start_date: str
     end_date: str
     total_budget: float
+    outlet_type: Optional[str] = None
+    outlet_size: Optional[str] = None
+    b_param: float = 0.0005
 
 
 class CampaignOutletSchema(BaseModel):
@@ -239,10 +245,25 @@ class CampaignSchema(BaseModel):
     end_date: str
     total_budget: float
     status: str
+    outlet_type: Optional[str] = None
+    outlet_size: Optional[str] = None
+    b_param: float
     created_at: str
 
     class Config:
         from_attributes = True
+
+
+class CampaignSimulationCreateSchema(BaseModel):
+    campaign_name: str
+    province: str
+    outlet_type: Optional[str] = None
+    outlet_size: Optional[str] = None
+    total_budget: float
+    b_param: float = 0.0005
+    start_date: str
+    end_date: str
+    top_n: int = 20
 
 
 class MonitoringSnapshotSchema(BaseModel):

@@ -143,21 +143,40 @@ class OptimizationService:
         }
 
     @staticmethod
-    def optimize_budget(db: Session, budget: float, b_param: float = 0.0005, province: Optional[str] = None) -> Dict[str, Any]:
+    def optimize_budget(
+        db: Session, 
+        budget: float, 
+        b_param: float = 0.0005, 
+        province: Optional[str] = None,
+        outlet_type: Optional[str] = None,
+        outlet_size: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Dynamically run the non-linear KKT dual-bisection optimization solver
-        over outlets, optionally filtered by province.
+        over outlets, optionally filtered by province, outlet_type, and outlet_size.
         """
-        query = db.query(BudgetAllocation)
+        query = db.query(BudgetAllocation).join(Outlet)
         if province:
-            query = query.join(Outlet).filter(Outlet.Province == province)
+            query = query.filter(Outlet.Province == province)
+        if outlet_type:
+            query = query.filter(Outlet.Outlet_Type == outlet_type)
+        if outlet_size:
+            query = query.filter(Outlet.Outlet_Size == outlet_size)
         records = query.all()
 
-        # Fallback: if records are empty and province is specified, dynamically construct them from predictions
-        if not records and province:
-            outlets = db.query(Outlet).filter(Outlet.Province == province).all()
+        # Fallback: if records are empty, dynamically construct them from predictions
+        if not records:
+            query_outlets = db.query(Outlet)
+            if province:
+                query_outlets = query_outlets.filter(Outlet.Province == province)
+            if outlet_type:
+                query_outlets = query_outlets.filter(Outlet.Outlet_Type == outlet_type)
+            if outlet_size:
+                query_outlets = query_outlets.filter(Outlet.Outlet_Size == outlet_size)
+            outlets = query_outlets.all()
             if not outlets:
                 return {}
+            
             outlet_ids = [o.Outlet_ID for o in outlets]
             preds = db.query(Prediction).filter(Prediction.Outlet_ID.in_(outlet_ids)).all()
             if not preds:

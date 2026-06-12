@@ -105,6 +105,9 @@ class Campaign(Base):
     end_date = Column(String, nullable=False)
     total_budget = Column(Float, nullable=False)
     status = Column(String, nullable=False, default="Draft")  # Draft, Active, Completed
+    outlet_type = Column(String, nullable=True)
+    outlet_size = Column(String, nullable=True)
+    b_param = Column(Float, nullable=False, default=0.0005)
     created_at = Column(String, default=lambda: datetime.datetime.utcnow().isoformat())
 
     # Relationships

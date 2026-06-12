@@ -66,7 +66,14 @@ def simulate_budget(req: OptimizeRequest, db: Session = Depends(get_db)):
     if req.b_param <= 0:
         raise HTTPException(status_code=400, detail="Diminishing returns parameter b_param must be greater than 0.")
         
-    result = OptimizationService.optimize_budget(db, req.budget, req.b_param)
+    result = OptimizationService.optimize_budget(
+        db,
+        budget=req.budget,
+        b_param=req.b_param,
+        province=req.province,
+        outlet_type=req.outlet_type,
+        outlet_size=req.outlet_size
+    )
     if not result:
         raise HTTPException(status_code=500, detail="Simulated optimization failed.")
     return result

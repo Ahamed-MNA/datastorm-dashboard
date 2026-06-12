@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { 
   BarChart3, RefreshCw, Sparkles, TrendingUp, HelpCircle, 
-  ArrowRight, ShieldCheck, CheckCircle2, ChevronRight 
+  ArrowRight, ShieldCheck, CheckCircle2, ChevronRight,
+  Building2, Calendar, Activity
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtInt, fmtMoney, fmtMoneyCompact, fmtNum, fmtPct } from "@/lib/format";
@@ -25,6 +26,13 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   ResponsiveContainer 
 } from "recharts";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/evaluation")({
   head: () => ({ meta: [{ title: "Pilot Evaluation — Outlet Intelligence" }] }),
@@ -34,6 +42,11 @@ export const Route = createFileRoute("/evaluation")({
 function EvaluationPage() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  // Outlet Detail Modal State
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const [selectedOutletType, setSelectedOutletType] = useState<"treatment" | "control">("treatment");
 
   // Queries
   const campaignsQuery = useQuery({
@@ -53,6 +66,24 @@ function EvaluationPage() {
     queryKey: ["evaluation-did", activeId],
     queryFn: () => api.getEvaluationDiD(activeId!),
     enabled: !!activeId && activeCampaignQuery.data?.status !== "Draft",
+  });
+
+  const outletQuery = useQuery({
+    queryKey: ["outlet-detail-eval", selectedOutletId],
+    queryFn: () => api.outlet(selectedOutletId!),
+    enabled: !!selectedOutletId && detailOpen,
+  });
+
+  const outletHistoryQuery = useQuery({
+    queryKey: ["outlet-history-eval", selectedOutletId],
+    queryFn: () => api.outletHistory(selectedOutletId!),
+    enabled: !!selectedOutletId && detailOpen,
+  });
+
+  const outletSnapshotsQuery = useQuery({
+    queryKey: ["outlet-snapshots-eval", activeId, selectedOutletId],
+    queryFn: () => api.getOutletMonitoring(activeId!, selectedOutletId!),
+    enabled: !!activeId && !!selectedOutletId && detailOpen && selectedOutletType === "treatment",
   });
 
   // Mutations
@@ -322,8 +353,18 @@ function EvaluationPage() {
                   {evalData.pairs.map((p) => (
                     <TableRow key={p.treatment_id}>
                       <TableCell className="font-medium">
-                        <div>
-                          <div className="text-sm font-semibold">{p.treatment_name}</div>
+                        <div 
+                          className="cursor-pointer hover:bg-muted/50 p-1.5 rounded transition-colors group"
+                          onClick={() => {
+                            setSelectedOutletId(p.treatment_id);
+                            setSelectedOutletType("treatment");
+                            setDetailOpen(true);
+                          }}
+                        >
+                          <div className="text-sm font-semibold text-primary group-hover:underline flex items-center gap-1">
+                            {p.treatment_name}
+                            <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                          </div>
                           <div className="text-[10px] font-mono text-muted-foreground">{p.treatment_id} &middot; {p.treatment_type} &middot; {p.treatment_size}</div>
                         </div>
                       </TableCell>
@@ -333,8 +374,18 @@ function EvaluationPage() {
                         + {fmtNum(p.treatment_lift)} L
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <div className="text-sm font-semibold">{p.control_name}</div>
+                        <div 
+                          className="cursor-pointer hover:bg-muted/50 p-1.5 rounded transition-colors group"
+                          onClick={() => {
+                            setSelectedOutletId(p.control_id);
+                            setSelectedOutletType("control");
+                            setDetailOpen(true);
+                          }}
+                        >
+                          <div className="text-sm font-semibold text-primary group-hover:underline flex items-center gap-1">
+                            {p.control_name}
+                            <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                          </div>
                           <div className="text-[10px] font-mono text-muted-foreground">{p.control_id}</div>
                         </div>
                       </TableCell>
@@ -351,6 +402,203 @@ function EvaluationPage() {
           </Card>
         </div>
       )}
+
+      {/* Outlet Details Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">
+              Outlet Details: {outletQuery.data?.Outlet_Name || "Loading..."}
+            </DialogTitle>
+            <DialogDescription>
+              View profile baseline, historical sales, and pilot performance for {selectedOutletId}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {outletQuery.isLoading ? (
+            <div className="flex h-60 items-center justify-center">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : outletQuery.data ? (
+            (() => {
+              const o = outletQuery.data;
+              const snapshotChartData = (outletSnapshotsQuery.data || []).map((s, idx) => ({
+                week: `Week ${idx + 1}`,
+                volume: s.actual_volume,
+                revenue: s.actual_revenue,
+                lift: s.actual_lift,
+              }));
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                  {/* Left Column: General Profile & History */}
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-primary" />
+                          General Profile
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Distributor:</span>
+                          <span className="font-semibold">{o.Distributor}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Province:</span>
+                          <span className="font-semibold">{o.Province}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Outlet Type:</span>
+                          <span className="font-semibold">{o.Outlet_Type}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Outlet Size:</span>
+                          <span className="font-semibold">{o.Outlet_Size}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Cooler Count:</span>
+                          <span className="font-semibold">{o.Cooler_Count}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Location:</span>
+                          <span className="font-semibold font-mono">{o.Latitude.toFixed(5)}, {o.Longitude.toFixed(5)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-primary" />
+                          Historical Sales (Last 3 Months)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0 max-h-40 overflow-y-auto">
+                        {outletHistoryQuery.data && outletHistoryQuery.data.length > 0 ? (
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-secondary/20 text-[10px]">
+                                <TableHead>Period</TableHead>
+                                <TableHead className="text-right">Volume (Liters)</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody className="text-[11px]">
+                              {outletHistoryQuery.data.slice(-3).map((h, i) => (
+                                <TableRow key={i}>
+                                  <TableCell>{h.Year} - Month {h.Month}</TableCell>
+                                  <TableCell className="text-right font-mono">{fmtNum(h.Volume_Liters)} L</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        ) : (
+                          <p className="p-4 text-xs text-muted-foreground text-center">No historical sales found.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Right Column: Campaign Performance & Snapshots */}
+                  <div className="space-y-4">
+                    <Card className={selectedOutletType === "treatment" ? "border-primary/20 bg-primary/[0.01]" : ""}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Activity className="h-4 w-4 text-primary" />
+                          {selectedOutletType === "treatment" ? "Treatment Group Performance" : "Control Group Performance"}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-xs">
+                        {selectedOutletType === "treatment" && o.budget_allocation && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground font-semibold text-primary">Allocated Budget:</span>
+                              <span className="font-bold text-primary">{fmtMoney(o.budget_allocation.Allocated_Budget)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Expected Lift:</span>
+                              <span className="font-semibold">{fmtNum(o.budget_allocation.Expected_Lift)} L</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Expected ROI:</span>
+                              <span className="font-semibold">{fmtPct(o.budget_allocation.ROI)}</span>
+                            </div>
+                          </>
+                        )}
+                        {(() => {
+                          const pair = evalData?.pairs.find(p => p.treatment_id === o.Outlet_ID || p.control_id === o.Outlet_ID);
+                          if (pair) {
+                            const pre = selectedOutletType === "treatment" ? pair.treatment_pre : pair.control_pre;
+                            const post = selectedOutletType === "treatment" ? pair.treatment_post : pair.control_post;
+                            const lift = selectedOutletType === "treatment" ? pair.treatment_lift : pair.control_lift;
+                            return (
+                              <>
+                                <div className="flex justify-between border-t border-border/60 pt-2 mt-2">
+                                  <span className="text-muted-foreground">Pre-Campaign Baseline (Avg):</span>
+                                  <span className="font-semibold">{fmtNum(pre)} L</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Post-Campaign Volume:</span>
+                                  <span className="font-semibold">{fmtNum(post)} L</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-semibold">Net Growth Lift:</span>
+                                  <span className="font-bold text-green-600">+{fmtNum(lift)} L</span>
+                                </div>
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </CardContent>
+                    </Card>
+
+                    {selectedOutletType === "treatment" && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Weekly Pilot Snaps (Volume)
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-40 pb-2">
+                          {outletSnapshotsQuery.isLoading ? (
+                            <div className="flex h-full items-center justify-center">
+                              <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : outletSnapshotsQuery.data && outletSnapshotsQuery.data.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={snapshotChartData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                                <XAxis dataKey="week" stroke="#888888" fontSize={9} tickLine={false} />
+                                <YAxis stroke="#888888" fontSize={9} tickLine={false} unit=" L" />
+                                <Tooltip wrapperStyle={{ fontSize: 10 }} />
+                                <Bar dataKey="volume" fill="hsl(var(--primary))" name="Vol (L)" radius={[2, 2, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <p className="text-xs text-muted-foreground text-center pt-8">No snapshots found.</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {selectedOutletType === "control" && (
+                      <div className="rounded-lg bg-muted/30 border border-border p-4 text-xs text-muted-foreground leading-relaxed">
+                        <p className="font-semibold text-foreground mb-1">Matched Control Outlet Context</p>
+                        Control outlets are matched to treatment outlets in the same province, size, and category. 
+                        They do not receive any budget allocations or campaign funding, and are monitored solely as a baseline to isolate external factors like seasonality.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <div className="text-xs text-destructive p-4">Failed to load outlet details.</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

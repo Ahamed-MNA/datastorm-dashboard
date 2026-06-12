@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Wallet, TrendingUp, Sparkles, Building2, PlayCircle } from "lucide-react";
+import { Wallet, TrendingUp, Sparkles, Building2, PlayCircle, Calendar, CheckCircle } from "lucide-react";
 
 import { api, type OptimizeResponse } from "@/lib/api";
 import { fmtInt, fmtMoneyCompact, fmtPct, fmtMoney } from "@/lib/format";
@@ -20,23 +20,113 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/budget")({
   head: () => ({ meta: [{ title: "Budget Simulator — Outlet Intelligence" }] }),
   component: BudgetPage,
 });
 
+const getSelectionReason = (gap: number, roi: number, school: string, comp: string) => {
+  if (gap > 200 && roi > 0.7) {
+    return "High unrealized demand and strong projected ROI.";
+  }
+  if (roi > 0.8) {
+    return "Outstanding return on investment score coupled with stable baseline demand.";
+  }
+  if (school === "High" || school === "Medium") {
+    return "Strong local demand driven by proximity to educational hubs and commercial centers.";
+  }
+  if (comp === "Low") {
+    return "High potential opportunity with minimal competitor presence in the immediate area.";
+  }
+  return "Steady sales opportunity with balanced market saturation and consistent performance metrics.";
+};
+
+const PROVINCES = ["Western", "Central", "North Western", "Southern"];
+const OUTLET_TYPES = ["Grocery", "Hotel", "Pharmacy", "Kiosk", "Eatery", "Bakery", "SMMT"];
+const OUTLET_SIZES = ["Medium", "Small", "Large", "Extra Large", "Unknown"];
+
 function BudgetPage() {
+  const navigate = useNavigate();
   const summary = useQuery({ queryKey: ["budget-summary"], queryFn: api.budgetSummary });
   const distributors = useQuery({ queryKey: ["budget-dist"], queryFn: api.budgetDistributors });
 
+  // Simulator States
   const [budget, setBudget] = useState(5_000_000);
   const [bParam, setBParam] = useState(0.0005);
+  const [province, setProvince] = useState("Western");
+  const [outletType, setOutletType] = useState<string>("__all");
+  const [outletSize, setOutletSize] = useState<string>("__all");
   const [result, setResult] = useState<OptimizeResponse | null>(null);
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+
+  // Dialog States for Campaign Creation
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [campaignName, setCampaignName] = useState("");
+  
+  const todayStr = new Date().toISOString().split("T")[0];
+  const threeMonthsLaterStr = (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().split("T")[0];
+  })();
+  
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(threeMonthsLaterStr);
+  const [pilotSize, setPilotSize] = useState(20);
 
   const simulate = useMutation({
-    mutationFn: () => api.budgetSimulate({ budget, b_param: bParam }),
+    mutationFn: () =>
+      api.budgetSimulate({
+        budget,
+        b_param: bParam,
+        province,
+        outlet_type: outletType === "__all" ? undefined : outletType,
+        outlet_size: outletSize === "__all" ? undefined : outletSize,
+      }),
     onSuccess: (data) => setResult(data),
+  });
+
+  const createCampaign = useMutation({
+    mutationFn: () =>
+      api.createCampaignFromSimulation({
+        campaign_name: campaignName,
+        province,
+        outlet_type: outletType === "__all" ? undefined : outletType,
+        outlet_size: outletSize === "__all" ? undefined : outletSize,
+        total_budget: result?.total_allocated ?? budget,
+        b_param: bParam,
+        start_date: startDate,
+        end_date: endDate,
+        top_n: pilotSize,
+      }),
+    onSuccess: () => {
+      setCreateDialogOpen(false);
+      setCampaignName("");
+      navigate({ to: "/monitoring" });
+    },
+  });
+
+  const xaiQuery = useQuery({
+    queryKey: ["xai", selectedOutletId],
+    queryFn: () => api.xai(selectedOutletId!),
+    enabled: !!selectedOutletId,
+    retry: false,
   });
 
   const s = summary.data;
@@ -84,7 +174,7 @@ function BudgetPage() {
         <CardHeader>
           <CardTitle className="font-serif text-2xl">What-If Simulator</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Adjust the available budget and the solver elasticity, then re-run the optimisation.
+            Adjust the available budget, solver elasticity, and segment filters, then re-run the optimisation.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -124,6 +214,57 @@ function BudgetPage() {
               </p>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3 border-t border-border pt-4">
+            <div className="space-y-2">
+              <Label className="text-sm">Province</Label>
+              <Select value={province} onValueChange={setProvince}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Province" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVINCES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p} Province
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Outlet Type</Label>
+              <Select value={outletType} onValueChange={setOutletType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All Types</SelectItem>
+                  {OUTLET_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Outlet Size</Label>
+              <Select value={outletSize} onValueChange={setOutletSize}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Sizes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All Sizes</SelectItem>
+                  {OUTLET_SIZES.map((sz) => (
+                    <SelectItem key={sz} value={sz}>
+                      {sz}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div>
             <Button onClick={() => simulate.mutate()} disabled={simulate.isPending} className="gap-2">
               <PlayCircle className="h-4 w-4" />
@@ -132,13 +273,34 @@ function BudgetPage() {
           </div>
 
           {result && (
-            <div className="space-y-4 border-t border-border pt-5">
+            <div className="space-y-6 border-t border-border pt-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-primary/5 rounded-lg p-4 border border-primary/20">
+                <div>
+                  <h3 className="font-serif text-lg text-primary flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    Optimisation Simulation Ready
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Segment: {province} Province &middot; {outletType === "__all" ? "All Types" : outletType} &middot; {outletSize === "__all" ? "All Sizes" : outletSize}
+                  </p>
+                </div>
+                <Button onClick={() => setCreateDialogOpen(true)} className="gap-2 shrink-0">
+                  <Sparkles className="h-4 w-4" />
+                  Create Campaign from Simulation
+                </Button>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <KpiCard label="Total Allocated" value={fmtMoneyCompact(result.total_allocated)} accent />
                 <KpiCard label="Expected Lift" value={`${fmtInt(result.expected_lift)} L`} />
-                <KpiCard label="Active Outlets" value={fmtInt(result.active_outlets)} />
+                <KpiCard
+                  label="Active Outlets"
+                  value={`${fmtInt(result.active_outlets)} / ${fmtInt(result.allocations.length)}`}
+                  hint="Funded vs. eligible"
+                />
                 <KpiCard label="Avg ROI" value={fmtPct(result.avg_roi)} />
               </div>
+              
               <div>
                 <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                   Top 15 allocations
@@ -160,7 +322,12 @@ function BudgetPage() {
                           .slice(0, 15)
                           .map((a) => (
                             <TableRow key={a.Outlet_ID}>
-                              <TableCell className="font-mono text-xs">{a.Outlet_ID}</TableCell>
+                              <TableCell 
+                                className="font-mono text-xs font-semibold text-primary hover:underline cursor-pointer"
+                                onClick={() => setSelectedOutletId(a.Outlet_ID)}
+                              >
+                                {a.Outlet_ID}
+                              </TableCell>
                               <TableCell className="text-right tabular-nums">
                                 {fmtMoney(a.Allocated_Budget)}
                               </TableCell>
@@ -218,6 +385,167 @@ function BudgetPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Campaign Creation Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Create Pilot Campaign</DialogTitle>
+            <DialogDescription>
+              Launch a live pilot campaign using this simulation. This will optimize the target outlets, seed weekly monitoring data, and set it to Active.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="campaign_name">Campaign Name</Label>
+              <Input
+                id="campaign_name"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="e.g. Q3 Western Grocery Campaign"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="start_date">Start Date</Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="end_date">End Date</Label>
+                <Input
+                  id="end_date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="pilot_size">Pilot Size (Treatment Outlets)</Label>
+              <Input
+                id="pilot_size"
+                type="number"
+                min={1}
+                max={100}
+                value={pilotSize}
+                onChange={(e) => setPilotSize(parseInt(e.target.value) || 20)}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Matches the top N simulated outlets by budget size. An equal number of control outlets will be paired.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateDialogOpen(false)}
+              disabled={createCampaign.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createCampaign.mutate()}
+              disabled={!campaignName || createCampaign.isPending}
+              className="gap-2"
+            >
+              {createCampaign.isPending ? "Creating..." : "Confirm & Launch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Selection Drivers Dialog */}
+      <Dialog open={!!selectedOutletId} onOpenChange={(open) => { if (!open) setSelectedOutletId(null); }}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Selection Drivers
+            </DialogTitle>
+            <DialogDescription>
+              Key attributes explaining the budget allocation decision for outlet <span className="font-mono font-semibold text-foreground">{selectedOutletId}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {xaiQuery.isLoading && (
+              <div className="flex flex-col items-center justify-center py-6 space-y-2">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                <span className="text-xs text-muted-foreground">Loading selection drivers...</span>
+              </div>
+            )}
+
+            {xaiQuery.isError && (
+              <div className="text-center py-4 text-xs text-destructive">
+                Failed to load drivers for this outlet.
+              </div>
+            )}
+
+            {xaiQuery.data && (() => {
+              const xaiData = xaiQuery.data;
+              const currentAllocation = result?.allocations.find(a => a.Outlet_ID === selectedOutletId);
+              
+              const signals = xaiData.payload?.local_signals || {};
+              const eduKey = Object.keys(signals).find(k => k.toLowerCase().includes('education') || k.toLowerCase().includes('school'));
+              const eduVal = eduKey ? signals[eduKey] : 0;
+              const schoolGravity = eduVal > 50 ? "High" : eduVal > 0 ? "Medium" : "Low";
+              
+              const compKey = Object.keys(signals).find(k => k.toLowerCase().includes('competitor_count') || k.toLowerCase().includes('competitor'));
+              const compVal = compKey ? signals[compKey] : 0;
+              const competition = compVal > 200 ? "High" : compVal > 80 ? "Medium" : "Low";
+
+              const roiVal = currentAllocation?.ROI ?? xaiData.efficiency_score;
+              const gapVal = currentAllocation?.Expected_Lift ?? xaiData.opportunity_gap;
+
+              const reason = getSelectionReason(gapVal, roiVal, schoolGravity, competition);
+
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-secondary/40 p-2.5 rounded-lg">
+                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">Potential Gap</span>
+                      <span className="text-sm font-semibold font-mono">+{fmtInt(gapVal)}L</span>
+                    </div>
+                    <div className="bg-secondary/40 p-2.5 rounded-lg">
+                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">ROI Score</span>
+                      <span className="text-sm font-semibold font-mono">{roiVal.toFixed(2)}</span>
+                    </div>
+                    <div className="bg-secondary/40 p-2.5 rounded-lg">
+                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">School Gravity</span>
+                      <span className={`text-sm font-semibold ${schoolGravity === 'High' ? 'text-emerald-500' : schoolGravity === 'Medium' ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                        {schoolGravity}
+                      </span>
+                    </div>
+                    <div className="bg-secondary/40 p-2.5 rounded-lg">
+                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">Competition</span>
+                      <span className={`text-sm font-semibold ${competition === 'High' ? 'text-rose-500' : competition === 'Medium' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                        {competition}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 border-t border-border pt-3">
+                    <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Reason</h4>
+                    <p className="text-xs font-medium text-foreground bg-primary/5 p-2 rounded border border-primary/10 animate-fade-in">
+                      {reason}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setSelectedOutletId(null)} variant="outline">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

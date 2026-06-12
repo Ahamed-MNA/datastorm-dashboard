@@ -60,14 +60,19 @@ class ReallocationService:
 
         # Only run reallocation/re-optimization if we actually retracted some budget from underperformers
         if len(underperforming_ids) > 0:
-            # 2. Find top 2 alternative outlets in the province that are NOT in the campaign
+            # 2. Find top 2 alternative outlets in the province/type/size that are NOT in the campaign
             campaign_outlet_ids = [o.outlet_id for o in db.query(CampaignOutlet).filter(CampaignOutlet.campaign_id == campaign_id).all()]
             
-            province_outlets = db.query(Outlet).filter(
+            query_alts = db.query(Outlet).filter(
                 Outlet.Province == campaign.province,
                 ~Outlet.Outlet_ID.in_(campaign_outlet_ids)
-            ).all()
-
+            )
+            if campaign.outlet_type:
+                query_alts = query_alts.filter(Outlet.Outlet_Type == campaign.outlet_type)
+            if campaign.outlet_size:
+                query_alts = query_alts.filter(Outlet.Outlet_Size == campaign.outlet_size)
+                
+            province_outlets = query_alts.all()
             province_outlet_ids = [o.Outlet_ID for o in province_outlets]
 
             # Query predictions for alternative outlets, order by Opportunity Gap descending
@@ -86,7 +91,7 @@ class ReallocationService:
                 ordered_ids = []
                 y_hist_list = []
                 upper_bounds_list = []
-                b_param = 0.0005
+                b_param = campaign.b_param if campaign.b_param else 0.0005
 
                 for oid in outlet_ids_to_optimize:
                     if oid in pred_map:
@@ -210,14 +215,15 @@ class ReallocationService:
                     ~Outlet.Outlet_ID.in_(campaign_outlet_ids)
                 ).all()
                 
+                control_outlet_map = {o.Outlet_ID: o for o in control_pool_outlets}
                 control_pool_ids = [o.Outlet_ID for o in control_pool_outlets]
                 control_pool = db.query(Prediction).filter(Prediction.Outlet_ID.in_(control_pool_ids)).all()
                 
                 match_ctrl = None
                 min_diff = float('inf')
                 for c_pred in control_pool:
-                    c_outlet = db.query(Outlet).filter(Outlet.Outlet_ID == c_pred.Outlet_ID).first()
-                    if c_outlet.Outlet_Type == t_outlet.Outlet_Type and c_outlet.Outlet_Size == t_outlet.Outlet_Size:
+                    c_outlet = control_outlet_map.get(c_pred.Outlet_ID)
+                    if c_outlet and c_outlet.Outlet_Type == t_outlet.Outlet_Type and c_outlet.Outlet_Size == t_outlet.Outlet_Size:
                         diff = abs(c_pred.Historical_Sales - t_pred.Historical_Sales)
                         if diff < min_diff:
                             min_diff = diff

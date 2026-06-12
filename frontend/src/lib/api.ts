@@ -244,11 +244,27 @@ export const api = {
   budgetDistributors: () => get<DistributorSpend[]>("/api/budget/distributors"),
   budgetOutlets: (params: { skip?: number; limit?: number }) =>
     get<BudgetAllocationSchema[]>("/api/budget/outlets", params),
-  budgetSimulate: (body: { budget: number; b_param: number }) =>
-    post<OptimizeResponse>("/api/budget/simulate", body),
+  budgetSimulate: (body: {
+    budget: number;
+    b_param: number;
+    province?: string;
+    outlet_type?: string;
+    outlet_size?: string;
+  }) => post<OptimizeResponse>("/api/budget/simulate", body),
 
   // Campaigns API endpoints
   createCampaign: (body: CampaignCreateInput) => post<Campaign>("/api/campaigns", body),
+  createCampaignFromSimulation: (body: {
+    campaign_name: string;
+    province: string;
+    outlet_type?: string;
+    outlet_size?: string;
+    total_budget: number;
+    b_param?: number;
+    start_date: string;
+    end_date: string;
+    top_n?: number;
+  }) => post<Campaign>("/api/campaigns/create-from-simulation", body),
   listCampaigns: () => get<Campaign[]>("/api/campaigns"),
   campaignDetails: (id: number) => get<Campaign>(`/api/campaigns/${id}`),
   startPilot: (id: number, topN = 20) => post<Campaign>(`/api/campaigns/${id}/generate-pilot?top_n=${topN}`, {}),
@@ -262,6 +278,7 @@ export const api = {
   getEvaluationDiD: (id: number) => get<DiDEvaluationDetails>(`/api/campaigns/${id}/evaluate/did`),
   getReallocations: (id: number) => post<ReallocationRecommendation[]>(`/api/campaigns/${id}/reallocate`, {}),
   applyReallocations: (id: number) => post<{ status: string; message: string }>(`/api/campaigns/${id}/reallocate/apply`, {}),
+  endCampaign: (id: number) => post<Campaign>(`/api/campaigns/${id}/end`, {}),
 };
 
 // Campaign interfaces
@@ -274,6 +291,9 @@ export type Campaign = {
   total_budget: number;
   status: string;
   created_at: string;
+  outlet_type?: string;
+  outlet_size?: string;
+  b_param?: number;
 };
 
 export type CampaignCreateInput = {
@@ -318,6 +338,13 @@ export type CampaignMonitoringSummary = {
   roi: number;
   actual_revenue: number;
   underperforming_outlets: number;
+  health_score: number;
+  health_score_details: {
+    lift_achievement: number;
+    roi_achievement: number;
+    treatment_vs_control: number;
+    outlet_participation: number;
+  };
   outlets_performance: Array<{
     outlet_id: string;
     outlet_name: string;

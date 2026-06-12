@@ -295,7 +295,72 @@ def test_endpoints():
     else:
         print("Skipped apply recommendations test (no underperforming outlets found)")
 
-    print("\nALL 17 ORIGINAL ENDPOINTS + ALL 14 NEW CAMPAIGN ENDPOINTS SUCCESSFULLY IMPLEMENTED AND VERIFIED!")
+    # 15. New features simulation filters & direct creation tests
+    print("\n=== STARTING NEW SIMULATION FILTERS & DIRECT CAMPAIGN CREATION TESTS ===")
+    
+    # Simulate with custom filters
+    print("Testing POST /api/budget/simulate with dynamic filters...")
+    sim_filters_payload = {
+        "budget": 800000.0,
+        "b_param": 0.0005,
+        "province": "Southern",
+        "outlet_type": "Grocery",
+        "outlet_size": "Medium"
+    }
+    response = client.post("/api/budget/simulate", json=sim_filters_payload)
+    assert response.status_code == 200
+    sim_res = response.json()
+    assert "total_allocated" in sim_res
+    print("Simulated spend with filters:", sim_res["total_allocated"])
+
+    # Create campaign from simulation
+    print("Testing POST /api/campaigns/create-from-simulation...")
+    create_sim_payload = {
+        "campaign_name": "Southern Grocery Medium Campaign",
+        "province": "Southern",
+        "outlet_type": "Grocery",
+        "outlet_size": "Medium",
+        "total_budget": 800000.0,
+        "b_param": 0.0005,
+        "start_date": "2026-06-01",
+        "end_date": "2026-06-30",
+        "top_n": 5
+    }
+    response = client.post("/api/campaigns/create-from-simulation", json=create_sim_payload)
+    assert response.status_code == 200
+    created_camp = response.json()
+    assert created_camp["campaign_name"] == "Southern Grocery Medium Campaign"
+    assert created_camp["status"] == "Active"
+    assert created_camp["province"] == "Southern"
+    assert created_camp["outlet_type"] == "Grocery"
+    assert created_camp["outlet_size"] == "Medium"
+    sim_camp_id = created_camp["campaign_id"]
+    print(f"Direct campaign created from simulation with ID: {sim_camp_id} and status: {created_camp['status']}")
+
+    # Verify that treatment group exists
+    response = client.get(f"/api/campaigns/{sim_camp_id}/treatment")
+    assert response.status_code == 200
+    sim_treatment = response.json()
+    print(f"Treatment group outlets for simulation campaign: {[t['outlet_id'] for t in sim_treatment]}")
+    assert len(sim_treatment) > 0
+
+    # Verify that control group exists
+    response = client.get(f"/api/campaigns/{sim_camp_id}/control")
+    assert response.status_code == 200
+    sim_control = response.json()
+    print(f"Matched control group outlets for simulation campaign: {[c['outlet_id'] for c in sim_control]}")
+    assert len(sim_control) > 0
+
+    # Test Ending the Campaign
+    print(f"Testing POST /api/campaigns/{sim_camp_id}/end...")
+    response = client.post(f"/api/campaigns/{sim_camp_id}/end")
+    assert response.status_code == 200
+    ended_camp = response.json()
+    assert ended_camp["status"] == "Completed"
+    print(f"Verified campaign status changed to: {ended_camp['status']}")
+
+    print("\nALL NEW SIMULATION FILTERS & DIRECT CAMPAIGN CREATION ENDPOINTS SUCCESSFULLY VERIFIED!")
+    print("\nALL 17 ORIGINAL ENDPOINTS + ALL 14 NEW CAMPAIGN ENDPOINTS + NEW SIMULATION FEATURES SUCCESSFULLY VERIFIED!")
 
 if __name__ == "__main__":
     test_endpoints()

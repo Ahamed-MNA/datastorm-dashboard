@@ -239,6 +239,48 @@ class MonitoringService:
             for dist, stats in distributor_map.items()
         ]
 
+        # Compute health score components
+        # 1. Expected Lift Achievement
+        lift_ach = (actual_lift_sum / expected_lift) if expected_lift > 0 else 1.0
+        lift_ach_score = min(1.0, max(0.0, lift_ach))
+        
+        # 2. ROI Achievement
+        expected_roi = expected_lift / allocated_budget if allocated_budget > 0 else 1.0
+        roi_ach_score = min(1.0, max(0.0, roi / expected_roi)) if expected_roi > 0 else 1.0
+        
+        # 3. Treatment vs Control
+        control_outlets = db.query(CampaignOutlet).filter(
+            CampaignOutlet.campaign_id == campaign_id,
+            CampaignOutlet.group_type == "control"
+        ).all()
+        control_ids = [co.outlet_id for co in control_outlets]
+        
+        t_pre_total = sum(MonitoringService.get_pre_volume_baseline(db, co.outlet_id, campaign.start_date) for co in treatment_outlets)
+        t_post_total = t_pre_total + actual_lift_sum
+        
+        c_pre_total = sum(MonitoringService.get_pre_volume_baseline(db, co.outlet_id, campaign.start_date) for co in control_outlets)
+        c_post_total = db.query(func.sum(MonitoringSnapshot.actual_volume)).filter(
+            MonitoringSnapshot.campaign_id == campaign_id,
+            MonitoringSnapshot.outlet_id.in_(control_ids)
+        ).scalar() or 0.0
+        
+        t_lift_pct = (t_post_total - t_pre_total) / t_pre_total if t_pre_total > 0 else 0.0
+        c_lift_pct = (c_post_total - c_pre_total) / c_pre_total if c_pre_total > 0 else 0.0
+        
+        if len(control_ids) == 0:
+            t_vs_c_score = 0.5
+        elif t_lift_pct > c_lift_pct:
+            t_vs_c_score = min(1.0, 0.5 + (t_lift_pct - c_lift_pct) * 5.0)
+        else:
+            t_vs_c_score = max(0.0, 0.5 - (c_lift_pct - t_lift_pct) * 5.0)
+            
+        # 4. Outlet Participation
+        participation_score = (len(treatment_outlets) - underperforming_count) / len(treatment_outlets) if len(treatment_outlets) > 0 else 1.0
+        
+        # Combined health score
+        health_score = (lift_ach_score + roi_ach_score + t_vs_c_score + participation_score) / 4.0
+        health_score_pct = round(health_score * 100.0, 1)
+
         return {
             "campaign_id": campaign_id,
             "campaign_name": campaign.campaign_name,
@@ -249,6 +291,13 @@ class MonitoringService:
             "roi": round(roi, 5),
             "actual_revenue": round(actual_revenue_sum, 2),
             "underperforming_outlets": underperforming_count,
+            "health_score": health_score_pct,
+            "health_score_details": {
+                "lift_achievement": round(lift_ach_score * 100.0, 1),
+                "roi_achievement": round(roi_ach_score * 100.0, 1),
+                "treatment_vs_control": round(t_vs_c_score * 100.0, 1),
+                "outlet_participation": round(participation_score * 100.0, 1)
+            },
             "outlets_performance": outlet_performance,
             "charts": {
                 "expected_vs_actual": expected_vs_actual_chart,

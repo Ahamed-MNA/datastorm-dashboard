@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { 
   Activity, Plus, Play, ShieldAlert, Sparkles, TrendingUp, Wallet, CheckCircle2, 
-  ArrowRight, RefreshCw, AlertCircle, AlertTriangle 
+  ArrowRight, RefreshCw, AlertCircle, AlertTriangle, HeartPulse
 } from "lucide-react";
 import { api, type Campaign, type CampaignCreateInput } from "@/lib/api";
 import { fmtMoney, fmtMoneyCompact, fmtInt, fmtPct } from "@/lib/format";
@@ -136,6 +136,19 @@ function MonitoringPage() {
     },
     onError: (err: any) => {
       toast.error("Failed to apply recommendations: " + err.message);
+    }
+  });
+
+  const endCampaign = useMutation({
+    mutationFn: (id: number) => api.endCampaign(id),
+    onSuccess: () => {
+      toast.success("Campaign ended successfully! Status set to Completed.");
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["campaign-details", activeId] });
+      queryClient.invalidateQueries({ queryKey: ["campaign-monitoring", activeId] });
+    },
+    onError: (err: any) => {
+      toast.error("Failed to end campaign: " + err.message);
     }
   });
 
@@ -322,12 +335,25 @@ function MonitoringPage() {
                 </Button>
               </div>
             )}
+
+            {currentCampaign.status === "Active" && (
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={() => endCampaign.mutate(currentCampaign.campaign_id)}
+                  disabled={endCampaign.isPending}
+                  className="gap-1.5 h-9"
+                  variant="destructive"
+                >
+                  End Campaign
+                </Button>
+              </div>
+            )}
           </div>
 
           {currentCampaign.status !== "Draft" && m && (
             <>
               {/* KPIs */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
                 <KpiCard
                   label="Allocated Budget"
                   value={fmtMoneyCompact(m.allocated_budget)}
@@ -356,6 +382,14 @@ function MonitoringPage() {
                   hint="Budgets needing attention"
                   icon={<ShieldAlert className="h-4 w-4" />}
                   className={m.underperforming_outlets > 0 ? "border-destructive/30 bg-destructive/5" : ""}
+                />
+                <KpiCard
+                  label="Campaign Health"
+                  value={m.health_score !== undefined ? `${m.health_score}%` : "—"}
+                  progress={m.health_score}
+                  progressColor={m.health_score < 60 ? "bg-destructive" : m.health_score < 80 ? "bg-amber-500" : "bg-green-500"}
+                  hint={`Lift: ${m.health_score_details?.lift_achievement}% | ROI: ${m.health_score_details?.roi_achievement}% | Control: ${m.health_score_details?.treatment_vs_control}% | Part: ${m.health_score_details?.outlet_participation}%`}
+                  icon={<HeartPulse className="h-4 w-4" />}
                 />
               </div>
 
