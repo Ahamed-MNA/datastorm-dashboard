@@ -79,10 +79,13 @@ datastorm-dashboard/
     │   ├── routes/
     │   │   ├── __root.tsx            # Root layout (sidebar + header shell)
     │   │   ├── index.tsx             # / → Executive Dashboard
+    │   │   ├── outlets.tsx           # Layout route for outlets
     │   │   ├── outlets.index.tsx     # /outlets → Outlet Explorer
     │   │   ├── outlets.$id.tsx       # /outlets/:id → Outlet Detail
     │   │   ├── map.tsx               # /map → Geospatial Map
-    │   │   └── budget.tsx            # /budget → Trade-Spend Optimiser
+    │   │   ├── budget.tsx            # /budget → Trade-Spend Optimiser
+    │   │   ├── monitoring.tsx        # /monitoring → Pilot Campaign Monitoring
+    │   │   └── evaluation.tsx        # /evaluation → Campaign Evaluation Console
     │   ├── components/
     │   │   ├── app-sidebar.tsx       # Navigation sidebar
     │   │   ├── kpi-card.tsx          # Metric display card
@@ -276,30 +279,53 @@ Built on **Leaflet + OpenStreetMap** centered on Sri Lanka.
 > _"Inspect the current allocation, run what-if scenarios, and see the recommended split."_
 
 **Current Allocation KPIs**
-
-Total Budget · Expected Lift · Avg ROI · Active Outlets / Total Eligible Outlets
+- Total Budget, Expected Lift, Avg ROI
+- Active Outlets count displayed as `funded / eligible` (e.g. `1,981 / 8,989`) with an interactive tooltip explanation.
 
 **What-If Simulator**
+- **Multi-Dimensional Filters**: Segment simulations by **Province**, **Outlet Type**, and **Outlet Size** in real-time.
+- **Total Budget slider**: Adjusts the promotional budget envelope.
+- **Solver elasticity (`b_param`)**: Adjusts optimizer sensitivity (concentration vs spreading).
+- **Run Simulation button**: Live backend KKT dual-bisection solver runs with the selected segment constraints.
 
-| Control | Range | Description |
-|---------|-------|-------------|
-| **Total Budget slider** | Rs 500K – Rs 20M | Adjusts the promotional budget envelope |
-| **Solver elasticity (`b_param`)** | 0.00001 – 0.01 | Lower = concentrate on best outlets; Higher = spread across more |
-| **Run Simulation button** | — | Posts to `/api/budget/simulate`, runs the live KKT dual-bisection solver on the backend |
+**Simulation Results**:
+- **Key metrics comparison**: Shows the optimized budget split, projected lift, active outlets, and average ROI.
+- **Top Allocations Table**: Shows the top 15 outlets receiving budget.
+  - **Explainable AI Drilldown**: Click on any **Outlet ID** in this table to open a modal displaying real-time selection drivers: *Potential Gap*, *ROI Score*, *School Gravity*, *Competition*, and an automated text reason for its selection.
+- **Spend by Distributor Table**: Full breakdown including total outlets, active outlets, spend share, lift, and ROI.
+- **Create Campaign Action**: Once optimized, click **Create Campaign** to transition simulated budgets directly into an active pilot. It asks for a campaign name, sets it to `"Active"`, matches control groups, and seeds weekly performance snapshots.
 
-**Simulation Results** (appear after running):
-- Updated KPIs: Total Allocated, Expected Lift, Active Outlets, Avg ROI
-- Top 15 outlet allocations table sorted by budget amount
+---
 
-**Spend by Distributor Table**
+### 📈 Pilot Campaign Monitoring — `/monitoring`
 
-Full breakdown: Total Outlets · Active Outlets · Total Spend · Share of Spend · Volume Lift · Avg ROI
+> _"Track active pilots, monitor weekly snapshots, and view composite campaign health."_
+
+- **Campaign Selection**: Select from active and completed campaigns.
+- **End Campaign Button**: Allows terminating an active pilot, updating its status to `"Completed"` and locking further updates.
+- **Campaign Health Score Card**: A composite percentage score calculated dynamically from four key dimensions:
+  - **Expected Lift Achievement**: Actual vs Expected volume lift.
+  - **ROI Achievement**: Actual vs Expected ROI.
+  - **Treatment vs Control Lift**: DiD relative performance difference.
+  - **Outlet Participation**: Percent of treatment outlets meeting baseline targets.
+- **Seeded Weekly Snapshot Timeline**: Line charts displaying cumulative volume, average ROI, active outlets, and lift over the weeks.
+
+---
+
+### 📊 Campaign Evaluation Console — `/evaluation`
+
+> _"Deep-dive into treatment-control groups, pre-post metrics, and mid-campaign reallocation suggestions."_
+
+- **Treatment & Control Group Explorer**: Review list of treatment and control outlets. Click on any outlet to open a details modal showing its ID, name, type, size, and status.
+- **Pre-Post Analysis**: Standard comparison of pre-campaign vs. post-campaign sales volumes.
+- **Difference-in-Differences (DiD) Analysis**: Calculates the true incremental impact (lift, ROI) by controlling for baseline differences and external factors using matched controls.
+- **Mid-Campaign Reallocation**: Computes optimized recommendations to shift budget from underperforming treatment outlets to high-performing ones. Allows applying the reallocation in one click.
 
 ---
 
 ## 📡 API Reference
 
-The backend exposes **17 REST endpoints** across 5 router groups.
+The backend exposes **34 REST endpoints** across 6 router groups.
 
 ### 📊 Dashboard
 | Method | Path | Description |
@@ -317,13 +343,13 @@ The backend exposes **17 REST endpoints** across 5 router groups.
 | `GET` | `/api/outlets/{id}/history` | 3-year monthly transaction history |
 | `GET` | `/api/outlets/export` | CSV download of entire prediction dataset |
 
-### 💰 Budget
+### 💰 Budget & Simulation
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/budget/summary` | High-level spend summary |
 | `GET` | `/api/budget/outlets` | Paginated per-outlet allocations |
 | `GET` | `/api/budget/distributors` | Distributor-wise spend breakdown |
-| `POST` | `/api/budget/simulate` | Run live KKT optimisation with custom `budget` and `b_param` |
+| `POST` | `/api/budget/simulate` | Run live KKT optimisation with custom filters, `budget` and `b_param` |
 
 ### 🗺️ Map
 | Method | Path | Description |
@@ -337,6 +363,21 @@ The backend exposes **17 REST endpoints** across 5 router groups.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/xai/{outlet_id}/explanation` | Generate AI narrative + feature attributions |
+| `GET` | `/api/xai/{outlet_id}` | Quick fetch of local signals, features, and efficiency |
+
+### 📢 Campaigns
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/campaigns` | List all created campaigns (Active/Completed) |
+| `POST` | `/api/campaigns` | Create a new campaign manually |
+| `POST` | `/api/campaigns/create-from-simulation` | Create campaign directly from simulated allocations |
+| `GET` | `/api/campaigns/{id}` | Get single campaign metadata |
+| `POST` | `/api/campaigns/{id}/end` | Terminate campaign (sets status to Completed) |
+| `GET` | `/api/campaigns/{id}/monitoring` | Get timeline snapshots and Campaign Health Score |
+| `GET` | `/api/campaigns/{id}/treatment` | Get treatment outlet list with weekly performance |
+| `GET` | `/api/campaigns/{id}/control` | Get control outlet list with matched baseline data |
+| `POST` | `/api/campaigns/{id}/reallocate` | Generate optimized mid-campaign reallocation recommendations |
+| `POST` | `/api/campaigns/{id}/reallocate/apply` | Apply recommended reallocation budgets |
 
 For full schemas, JSON examples, and query parameter details, see:
 👉 [`backend/API_DOCUMENTATION.md`](backend/API_DOCUMENTATION.md)

@@ -370,7 +370,154 @@ Returns categories-wise POI gravity scores.
 ### 🧠 Explainable AI Endpoints
 
 #### `GET /api/xai/{outlet_id}/explanation`
-Generates SFA metrics and routes request to Google Gemini or Groq models.
+Generates SFA metrics and routes request to Google Gemini or Groq models to return a 3-paragraph executive narrative.
 * **Path Parameters**:
   - `outlet_id` (string): Outlet ID.
 * **Response Body**: `OutletXAIResponseSchema`
+
+#### `GET /api/xai/{outlet_id}`
+Quickly returns the structured JSON of features, operational constraints, and local signals without invoking the LLM model.
+* **Path Parameters**:
+  - `outlet_id` (string): Outlet ID.
+* **Response Body**: `OutletXAIResponseSchema` (with `explanation` set to empty string)
+
+---
+
+### 📢 Campaigns Endpoints
+
+#### `GET /api/campaigns`
+Lists all pilot campaigns.
+* **Response Body**: `List[CampaignSchema]`
+```json
+[
+  {
+    "campaign_id": 1,
+    "campaign_name": "Test Campaign",
+    "province": "Western",
+    "start_date": "2026-06-01",
+    "end_date": "2026-06-30",
+    "total_budget": 1000000.0,
+    "status": "Active",
+    "outlet_type": "Grocery",
+    "outlet_size": "Medium",
+    "b_param": 0.0005,
+    "created_at": "2026-06-12T17:00:00"
+  }
+]
+```
+
+#### `POST /api/campaigns`
+Creates a pilot campaign manually.
+* **Request Body**: `CampaignCreateSchema`
+* **Response Body**: `CampaignSchema`
+
+#### `POST /api/campaigns/create-from-simulation`
+Creates a pilot campaign directly from simulation results. Automatically matches treatment-control pairs and seeds weekly progress snapshots.
+* **Request Body**: `CampaignSimulationCreateSchema`
+```json
+{
+  "campaign_name": "Q2 Western Grocery Pilot",
+  "province": "Western",
+  "outlet_type": "Grocery",
+  "outlet_size": "Medium",
+  "total_budget": 500000.0,
+  "b_param": 0.0005,
+  "start_date": "2026-06-01",
+  "end_date": "2026-06-30",
+  "top_n": 20
+}
+```
+* **Response Body**: `CampaignSchema`
+
+#### `GET /api/campaigns/{id}`
+Returns details for a single campaign.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+* **Response Body**: `CampaignSchema`
+
+#### `POST /api/campaigns/{id}/end`
+Ends an active pilot campaign. Updates status to `"Completed"`.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+* **Response Body**: `CampaignSchema`
+
+#### `GET /api/campaigns/{id}/monitoring`
+Gets weekly snapshots, treatment vs. control performance overview, and the composite **Campaign Health Score**.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+* **Response Body**: `Dict[str, Any]`
+```json
+{
+  "campaign": { ... },
+  "health_score": 82.5,
+  "health_components": {
+    "expected_lift_achievement": 0.85,
+    "roi_achievement": 0.78,
+    "treatment_vs_control": 0.90,
+    "outlet_participation": 0.77
+  },
+  "summary": {
+    "expected_lift": 12000.0,
+    "actual_lift": 10200.0,
+    "expected_roi": 0.24,
+    "actual_roi": 0.1872,
+    "total_treatment_outlets": 20,
+    "underperforming_outlets": 4
+  },
+  "weeks": [
+    {
+      "week": 1,
+      "date": "2026-06-07",
+      "actual_volume": 4200.0,
+      "actual_lift": 2300.0,
+      "actual_roi": 0.21,
+      "active_outlets": 20
+    }
+  ]
+}
+```
+
+#### `GET /api/campaigns/{id}/monitoring/{outlet_id}`
+Returns weekly performance timelines for an individual outlet.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+  - `outlet_id` (string): Outlet ID.
+* **Response Body**: `List[MonitoringSnapshotSchema]`
+
+#### `GET /api/campaigns/{id}/treatment`
+Lists all treatment group outlets assigned to this campaign.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+* **Response Body**: `List[CampaignOutletSchema]`
+
+#### `GET /api/campaigns/{id}/control`
+Lists all control group outlets matched with the treatment group.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+* **Response Body**: `List[CampaignOutletSchema]`
+
+#### `POST /api/campaigns/{id}/reallocate`
+Runs live optimization on current performance snapshots to generate reallocation suggestions.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+* **Response Body**: `List[ReallocationRecommendationSchema]`
+```json
+[
+  {
+    "recommendation_id": 1,
+    "campaign_id": 1,
+    "outlet_id": "OUT_00001",
+    "current_budget": 5000.0,
+    "recommended_budget": 0.0,
+    "expected_improvement": -0.15,
+    "recommendation_reason": "Outlet is underperforming relative to control baseline. Reallocate budget to higher ROI alternatives."
+  }
+]
+```
+
+#### `POST /api/campaigns/{id}/reallocate/apply`
+Applies recommended budget reallocation adjustments.
+* **Path Parameters**:
+  - `id` (int): Campaign ID.
+* **Response Body**: `Dict[str, Any]` (Status confirmation)
+

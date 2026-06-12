@@ -80,7 +80,7 @@ uv run python test_backend.py
 
 For the complete API schemas, JSON examples, request bodies, and database field mappings, please refer to [API_DOCUMENTATION.md](file:///c:/data-storm/datastorm-dashboard/backend/API_DOCUMENTATION.md).
 
-Here is the quick-reference checklist of all 17 active endpoints:
+Here is the quick-reference checklist of all 34 active endpoints:
 
 ### 📊 Dashboard
 - `GET /api/dashboard/summary`: Summary of total outlets, budget allocation, lift, and average efficiency.
@@ -88,7 +88,7 @@ Here is the quick-reference checklist of all 17 active endpoints:
 - `GET /api/dashboard/provinces`: Detail aggregates grouped by province.
 
 ### 💰 Budget & Simulation
-- `POST /api/budget/simulate`: Re-run KKT optimization dynamically with custom budget limits.
+- `POST /api/budget/simulate`: Re-run KKT optimization dynamically with custom budget, elasticity (b_param), and segment filters (province, outlet type, outlet size).
 - `GET /api/budget/outlets`: Detailed spend allocations per outlet.
 - `GET /api/budget/distributors`: Distributor-wise spend aggregates, active counts, and average ROI.
 - `GET /api/budget/summary`: Overall promotional spend allocation summary.
@@ -108,4 +108,23 @@ Here is the quick-reference checklist of all 17 active endpoints:
 
 ### 🧠 Explainable AI
 - `GET /api/xai/{outlet_id}/explanation`: SFA local driver attributions and 3-paragraph executive narrative.
+- `GET /api/xai/{outlet_id}`: Quick fetch of local signals, features, and efficiency.
+
+### 📢 Campaigns
+- `GET /api/campaigns`: List all created campaigns (Active/Completed).
+- `POST /api/campaigns`: Create a new campaign manually.
+- `POST /api/campaigns/create-from-simulation`: Create campaign directly from simulated allocations.
+- `GET /api/campaigns/{id}`: Get single campaign metadata.
+- `POST /api/campaigns/{id}/end`: Terminate active campaign (transitions status to Completed).
+- `GET /api/campaigns/{id}/monitoring`: Get weekly snapshots timeline and the composite Campaign Health Score.
+- `GET /api/campaigns/{id}/monitoring/{outlet_id}`: Get weekly timeline snapshots for a specific outlet.
+- `GET /api/campaigns/{id}/treatment`: Get treatment outlet list with weekly performance data.
+- `GET /api/campaigns/{id}/control`: Get matched control outlet list with baseline data.
+- `POST /api/campaigns/{id}/evaluate/pre-post`: Post/Initiate pre-post impact evaluation analysis.
+- `GET /api/campaigns/{id}/evaluate/pre-post`: Get pre-post evaluation summary.
+- `POST /api/campaigns/{id}/evaluate/did`: Post/Initiate Difference-in-Differences evaluation.
+- `GET /api/campaigns/{id}/evaluate/did`: Get DiD analysis summary.
+- `POST /api/campaigns/{id}/reallocate`: Generate optimized mid-campaign reallocation recommendations.
+- `POST /api/campaigns/{id}/reallocate/apply`: Apply budget reallocation recommendations.
+
 
