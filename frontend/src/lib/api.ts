@@ -246,4 +246,159 @@ export const api = {
     get<BudgetAllocationSchema[]>("/api/budget/outlets", params),
   budgetSimulate: (body: { budget: number; b_param: number }) =>
     post<OptimizeResponse>("/api/budget/simulate", body),
+
+  // Campaigns API endpoints
+  createCampaign: (body: CampaignCreateInput) => post<Campaign>("/api/campaigns", body),
+  listCampaigns: () => get<Campaign[]>("/api/campaigns"),
+  campaignDetails: (id: number) => get<Campaign>(`/api/campaigns/${id}`),
+  startPilot: (id: number, topN = 20) => post<Campaign>(`/api/campaigns/${id}/generate-pilot?top_n=${topN}`, {}),
+  getTreatmentGroup: (id: number) => get<CampaignOutlet[]>(`/api/campaigns/${id}/treatment`),
+  getControlGroup: (id: number) => get<CampaignOutlet[]>(`/api/campaigns/${id}/control`),
+  getCampaignMonitoring: (id: number) => get<CampaignMonitoringSummary>(`/api/campaigns/${id}/monitoring`),
+  getOutletMonitoring: (id: number, outletId: string) => get<MonitoringSnapshot[]>(`/api/campaigns/${id}/monitoring/${outletId}`),
+  runEvaluationPrePost: (id: number) => post<Record<string, any>>(`/api/campaigns/${id}/evaluate/pre-post`, {}),
+  getEvaluationPrePost: (id: number) => get<Record<string, any>>(`/api/campaigns/${id}/evaluate/pre-post`),
+  runEvaluationDiD: (id: number) => post<ImpactAnalysis>(`/api/campaigns/${id}/evaluate/did`, {}),
+  getEvaluationDiD: (id: number) => get<DiDEvaluationDetails>(`/api/campaigns/${id}/evaluate/did`),
+  getReallocations: (id: number) => post<ReallocationRecommendation[]>(`/api/campaigns/${id}/reallocate`, {}),
+  applyReallocations: (id: number) => post<{ status: string; message: string }>(`/api/campaigns/${id}/reallocate/apply`, {}),
 };
+
+// Campaign interfaces
+export type Campaign = {
+  campaign_id: number;
+  campaign_name: string;
+  province: string;
+  start_date: string;
+  end_date: string;
+  total_budget: number;
+  status: string;
+  created_at: string;
+};
+
+export type CampaignCreateInput = {
+  campaign_name: string;
+  province: string;
+  start_date: string;
+  end_date: string;
+  total_budget: number;
+};
+
+export type CampaignOutlet = {
+  id: number;
+  campaign_id: number;
+  outlet_id: string;
+  allocated_budget: number;
+  expected_lift_liters: number;
+  expected_roi: number;
+  group_type: string;
+  outlet_name?: string;
+  outlet_type?: string;
+  outlet_size?: string;
+};
+
+export type MonitoringSnapshot = {
+  snapshot_id: number;
+  campaign_id: number;
+  outlet_id: string;
+  snapshot_date: string;
+  actual_volume: number;
+  actual_revenue: number;
+  actual_lift: number;
+  notes?: string;
+};
+
+export type CampaignMonitoringSummary = {
+  campaign_id: number;
+  campaign_name: string;
+  status: string;
+  allocated_budget: number;
+  expected_lift: number;
+  actual_lift: number;
+  roi: number;
+  actual_revenue: number;
+  underperforming_outlets: number;
+  outlets_performance: Array<{
+    outlet_id: string;
+    outlet_name: string;
+    distributor: string;
+    allocated_budget: number;
+    expected_lift: number;
+    actual_lift: number;
+    roi: number;
+    performance_pct: number;
+    status: "Green" | "Yellow" | "Red";
+    notes: string;
+  }>;
+  charts: {
+    expected_vs_actual: Array<{
+      outlet_id: string;
+      expected_lift: number;
+      actual_lift: number;
+    }>;
+    budget_vs_roi: Array<{
+      outlet_id: string;
+      budget: number;
+      roi: number;
+    }>;
+    province_performance: Array<{
+      distributor: string;
+      budget: number;
+      actual_lift: number;
+      roi: number;
+    }>;
+  };
+};
+
+export type ImpactAnalysis = {
+  analysis_id: number;
+  campaign_id: number;
+  pre_volume: number;
+  post_volume: number;
+  treatment_lift: number;
+  control_lift: number;
+  did_effect: number;
+  confidence_score: number;
+  generated_at: string;
+};
+
+export type DiDEvaluationDetails = {
+  campaign_id: number;
+  campaign_name: string;
+  status: string;
+  pre_volume: number;
+  post_volume: number;
+  treatment_lift: number;
+  control_lift: number;
+  did_effect: number;
+  confidence_score: number;
+  generated_at: string | null;
+  pairs: Array<{
+    treatment_id: string;
+    treatment_name: string;
+    treatment_type: string;
+    treatment_size: string;
+    treatment_pre: number;
+    treatment_post: number;
+    treatment_lift: number;
+    control_id: string;
+    control_name: string;
+    control_pre: number;
+    control_post: number;
+    control_lift: number;
+    net_lift: number;
+  }>;
+};
+
+export type ReallocationRecommendation = {
+  recommendation_id: number;
+  campaign_id: number;
+  outlet_id: string;
+  current_budget: number;
+  recommended_budget: number;
+  expected_improvement: number;
+  recommendation_reason: string;
+  created_at: string;
+  outlet_name?: string;
+};
+

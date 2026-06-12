@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import dashboard, outlets, budget, xai, map
+from app.routers import dashboard, outlets, budget, xai, map, campaigns
+from db.database import engine, Base
+
+# Create tables if they do not exist
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Outlet Intelligence API",
@@ -23,6 +27,7 @@ app.include_router(outlets.router)
 app.include_router(budget.router)
 app.include_router(xai.router)
 app.include_router(map.router)
+app.include_router(campaigns.router)
 
 @app.get("/")
 def read_root():

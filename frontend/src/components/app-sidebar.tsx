@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Store, Map as MapIcon, Wallet, Sparkles } from "lucide-react";
+import { LayoutDashboard, Store, Map as MapIcon, Wallet, Sparkles, Activity, BarChart3 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +18,8 @@ const items = [
   { title: "Outlets", url: "/outlets", icon: Store },
   { title: "Map", url: "/map", icon: MapIcon },
   { title: "Budget", url: "/budget", icon: Wallet },
+  { title: "Campaign Monitoring", url: "/monitoring", icon: Activity },
+  { title: "Pilot Evaluation", url: "/evaluation", icon: BarChart3 },
 ] as const;
 
 export function AppSidebar() {

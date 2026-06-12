@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OutletsRouteImport } from './routes/outlets'
+import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as MapRouteImport } from './routes/map'
+import { Route as EvaluationRouteImport } from './routes/evaluation'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutletsIndexRouteImport } from './routes/outlets.index'
@@ -21,9 +23,19 @@ const OutletsRoute = OutletsRouteImport.update({
   path: '/outlets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MonitoringRoute = MonitoringRouteImport.update({
+  id: '/monitoring',
+  path: '/monitoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MapRoute = MapRouteImport.update({
   id: '/map',
   path: '/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvaluationRoute = EvaluationRouteImport.update({
+  id: '/evaluation',
+  path: '/evaluation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BudgetRoute = BudgetRouteImport.update({
@@ -50,7 +62,9 @@ const OutletsIdRoute = OutletsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRoute
+  '/evaluation': typeof EvaluationRoute
   '/map': typeof MapRoute
+  '/monitoring': typeof MonitoringRoute
   '/outlets': typeof OutletsRouteWithChildren
   '/outlets/$id': typeof OutletsIdRoute
   '/outlets/': typeof OutletsIndexRoute
@@ -58,7 +72,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRoute
+  '/evaluation': typeof EvaluationRoute
   '/map': typeof MapRoute
+  '/monitoring': typeof MonitoringRoute
   '/outlets/$id': typeof OutletsIdRoute
   '/outlets': typeof OutletsIndexRoute
 }
@@ -66,7 +82,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/budget': typeof BudgetRoute
+  '/evaluation': typeof EvaluationRoute
   '/map': typeof MapRoute
+  '/monitoring': typeof MonitoringRoute
   '/outlets': typeof OutletsRouteWithChildren
   '/outlets/$id': typeof OutletsIdRoute
   '/outlets/': typeof OutletsIndexRoute
@@ -76,17 +94,28 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/budget'
+    | '/evaluation'
     | '/map'
+    | '/monitoring'
     | '/outlets'
     | '/outlets/$id'
     | '/outlets/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/budget' | '/map' | '/outlets/$id' | '/outlets'
+  to:
+    | '/'
+    | '/budget'
+    | '/evaluation'
+    | '/map'
+    | '/monitoring'
+    | '/outlets/$id'
+    | '/outlets'
   id:
     | '__root__'
     | '/'
     | '/budget'
+    | '/evaluation'
     | '/map'
+    | '/monitoring'
     | '/outlets'
     | '/outlets/$id'
     | '/outlets/'
@@ -95,7 +124,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BudgetRoute: typeof BudgetRoute
+  EvaluationRoute: typeof EvaluationRoute
   MapRoute: typeof MapRoute
+  MonitoringRoute: typeof MonitoringRoute
   OutletsRoute: typeof OutletsRouteWithChildren
 }
 
@@ -108,11 +139,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutletsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/monitoring': {
+      id: '/monitoring'
+      path: '/monitoring'
+      fullPath: '/monitoring'
+      preLoaderRoute: typeof MonitoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/map': {
       id: '/map'
       path: '/map'
       fullPath: '/map'
       preLoaderRoute: typeof MapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/evaluation': {
+      id: '/evaluation'
+      path: '/evaluation'
+      fullPath: '/evaluation'
+      preLoaderRoute: typeof EvaluationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/budget': {
@@ -162,7 +207,9 @@ const OutletsRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BudgetRoute: BudgetRoute,
+  EvaluationRoute: EvaluationRoute,
   MapRoute: MapRoute,
+  MonitoringRoute: MonitoringRoute,
   OutletsRoute: OutletsRouteWithChildren,
 }
 export const routeTree = rootRouteImport

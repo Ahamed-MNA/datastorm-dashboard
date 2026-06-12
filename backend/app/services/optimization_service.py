@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.optimize as opt
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from db.models import BudgetAllocation, Outlet, Prediction
 from app.models.schemas import BudgetAllocationSchema
 
@@ -70,24 +70,18 @@ class OptimizationService:
         }
 
     @staticmethod
-    def optimize_budget(db: Session, budget: float, b_param: float = 0.0005) -> Dict[str, Any]:
+    def solve_kkt(outlet_ids: List[str], y_hist: np.ndarray, upper_bounds: np.ndarray, budget: float, b_param: float = 0.0005) -> Dict[str, Any]:
         """
-        Dynamically run the non-linear KKT dual-bisection optimization solver
-        over all Western Province outlets.
+        Core KKT bisection optimizer solver.
         """
-        # Load all Western Province outlets from the budget_allocations table
-        records = db.query(BudgetAllocation).all()
-        if not records:
-            return {}
-
-        outlet_ids = [r.Outlet_ID for r in records]
-        y_hist = np.array([r.Y_historical for r in records])
-        
-        # Scale Upper Bounds if b_param is different from database default (0.0005)
-        db_default_b = 0.0005
-        upper_bounds = np.array([r.Upper_Bound for r in records])
-        if abs(b_param - db_default_b) > 1e-9:
-            upper_bounds = upper_bounds * (db_default_b / b_param)
+        if len(outlet_ids) == 0:
+            return {
+                "total_allocated": 0.0,
+                "expected_lift": 0.0,
+                "active_outlets": 0,
+                "avg_roi": 0.0,
+                "allocations": []
+            }
 
         a_arr = np.clip(y_hist, 1.0, None)
         U_arr = upper_bounds
@@ -147,3 +141,52 @@ class OptimizationService:
             "avg_roi": round(avg_roi, 5),
             "allocations": allocations
         }
+
+    @staticmethod
+    def optimize_budget(db: Session, budget: float, b_param: float = 0.0005, province: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Dynamically run the non-linear KKT dual-bisection optimization solver
+        over outlets, optionally filtered by province.
+        """
+        query = db.query(BudgetAllocation)
+        if province:
+            query = query.join(Outlet).filter(Outlet.Province == province)
+        records = query.all()
+
+        # Fallback: if records are empty and province is specified, dynamically construct them from predictions
+        if not records and province:
+            outlets = db.query(Outlet).filter(Outlet.Province == province).all()
+            if not outlets:
+                return {}
+            outlet_ids = [o.Outlet_ID for o in outlets]
+            preds = db.query(Prediction).filter(Prediction.Outlet_ID.in_(outlet_ids)).all()
+            if not preds:
+                return {}
+            
+            y_hist = np.array([p.Historical_Sales for p in preds])
+            
+            # Recompute Upper Bounds
+            upper_bounds = []
+            for p in preds:
+                a_i = max(p.Historical_Sales, 1.0)
+                headroom = max(p.Predicted_Potential - p.Historical_Sales, 0.0)
+                ratio = min(headroom / a_i, 50.0)
+                ub = (np.exp(ratio) - 1.0) / b_param
+                upper_bounds.append(ub)
+            upper_bounds = np.array(upper_bounds)
+            
+            return OptimizationService.solve_kkt([p.Outlet_ID for p in preds], y_hist, upper_bounds, budget, b_param)
+
+        if not records:
+            return {}
+
+        outlet_ids = [r.Outlet_ID for r in records]
+        y_hist = np.array([r.Y_historical for r in records])
+        
+        # Scale Upper Bounds if b_param is different from database default (0.0005)
+        db_default_b = 0.0005
+        upper_bounds = np.array([r.Upper_Bound for r in records])
+        if abs(b_param - db_default_b) > 1e-9:
+            upper_bounds = upper_bounds * (db_default_b / b_param)
+
+        return OptimizationService.solve_kkt(outlet_ids, y_hist, upper_bounds, budget, b_param)

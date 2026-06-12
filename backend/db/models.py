@@ -1,3 +1,4 @@
+import datetime
 from sqlalchemy import Column, String, Float, Integer, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -92,3 +93,90 @@ class OutletHistory(Base):
 
     # Relationships
     outlet = relationship("Outlet", back_populates="history")
+
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+
+    campaign_id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_name = Column(String, nullable=False)
+    province = Column(String, nullable=False)
+    start_date = Column(String, nullable=False)
+    end_date = Column(String, nullable=False)
+    total_budget = Column(Float, nullable=False)
+    status = Column(String, nullable=False, default="Draft")  # Draft, Active, Completed
+    created_at = Column(String, default=lambda: datetime.datetime.utcnow().isoformat())
+
+    # Relationships
+    outlets = relationship("CampaignOutlet", back_populates="campaign", cascade="all, delete-orphan")
+    snapshots = relationship("MonitoringSnapshot", back_populates="campaign", cascade="all, delete-orphan")
+    impact_analysis = relationship("ImpactAnalysis", back_populates="campaign", cascade="all, delete-orphan")
+    recommendations = relationship("ReallocationRecommendation", back_populates="campaign", cascade="all, delete-orphan")
+
+
+class CampaignOutlet(Base):
+    __tablename__ = "campaign_outlets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.campaign_id"), nullable=False)
+    outlet_id = Column(String, ForeignKey("outlets.Outlet_ID"), nullable=False)
+    allocated_budget = Column(Float, nullable=False, default=0.0)
+    expected_lift_liters = Column(Float, nullable=False, default=0.0)
+    expected_roi = Column(Float, nullable=False, default=0.0)
+    group_type = Column(String, nullable=False)  # treatment, control
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="outlets")
+    outlet = relationship("Outlet")
+
+
+class MonitoringSnapshot(Base):
+    __tablename__ = "monitoring_snapshots"
+
+    snapshot_id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.campaign_id"), nullable=False)
+    outlet_id = Column(String, ForeignKey("outlets.Outlet_ID"), nullable=False)
+    snapshot_date = Column(String, nullable=False)
+    actual_volume = Column(Float, nullable=False)
+    actual_revenue = Column(Float, nullable=False)
+    actual_lift = Column(Float, nullable=False)
+    notes = Column(String, nullable=True)
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="snapshots")
+    outlet = relationship("Outlet")
+
+
+class ImpactAnalysis(Base):
+    __tablename__ = "impact_analysis"
+
+    analysis_id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.campaign_id"), nullable=False)
+    pre_volume = Column(Float, nullable=False)
+    post_volume = Column(Float, nullable=False)
+    treatment_lift = Column(Float, nullable=False)
+    control_lift = Column(Float, nullable=False)
+    did_effect = Column(Float, nullable=False)
+    confidence_score = Column(Float, nullable=False)
+    generated_at = Column(String, default=lambda: datetime.datetime.utcnow().isoformat())
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="impact_analysis")
+
+
+class ReallocationRecommendation(Base):
+    __tablename__ = "reallocation_recommendations"
+
+    recommendation_id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.campaign_id"), nullable=False)
+    outlet_id = Column(String, ForeignKey("outlets.Outlet_ID"), nullable=False)
+    current_budget = Column(Float, nullable=False)
+    recommended_budget = Column(Float, nullable=False)
+    expected_improvement = Column(Float, nullable=False)
+    recommendation_reason = Column(String, nullable=False)
+    created_at = Column(String, default=lambda: datetime.datetime.utcnow().isoformat())
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="recommendations")
+    outlet = relationship("Outlet")
+

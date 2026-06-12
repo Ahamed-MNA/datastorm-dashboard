@@ -202,3 +202,90 @@ class MapOutletItem(BaseModel):
     Province: str
     Distributor: str
     Predicted_Potential: float
+
+
+# Campaign schemas
+class CampaignCreateSchema(BaseModel):
+    campaign_name: str
+    province: str
+    start_date: str
+    end_date: str
+    total_budget: float
+
+
+class CampaignOutletSchema(BaseModel):
+    id: int
+    campaign_id: int
+    outlet_id: str
+    allocated_budget: float
+    expected_lift_liters: float
+    expected_roi: float
+    group_type: str
+    
+    # Nested fields for UI convenience
+    outlet_name: Optional[str] = None
+    outlet_type: Optional[str] = None
+    outlet_size: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CampaignSchema(BaseModel):
+    campaign_id: int
+    campaign_name: str
+    province: str
+    start_date: str
+    end_date: str
+    total_budget: float
+    status: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class MonitoringSnapshotSchema(BaseModel):
+    snapshot_id: int
+    campaign_id: int
+    outlet_id: str
+    snapshot_date: str
+    actual_volume: float
+    actual_revenue: float
+    actual_lift: float
+    notes: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ImpactAnalysisSchema(BaseModel):
+    analysis_id: int
+    campaign_id: int
+    pre_volume: float
+    post_volume: float
+    treatment_lift: float
+    control_lift: float
+    did_effect: float
+    confidence_score: float
+    generated_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class ReallocationRecommendationSchema(BaseModel):
+    recommendation_id: int
+    campaign_id: int
+    outlet_id: str
+    current_budget: float
+    recommended_budget: float
+    expected_improvement: float
+    recommendation_reason: str
+    created_at: str
+    
+    outlet_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
